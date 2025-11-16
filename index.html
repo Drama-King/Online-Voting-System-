@@ -1,13 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure E-Voting System</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; }
+        #app-container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h2, h3 { color: #333; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        input[type="text"], input[type="password"], select { width: 100%; padding: 10px; margin: 8px 0; display: inline-block; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #007bff; color: white; padding: 10px 15px; margin: 8px 0; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background-color: #0056b3; }
+        #otp_modal { background: #fff8e1; border: 1px solid #ffecb3; padding: 15px; margin-top: 20px; border-radius: 4px; }
+        #votes { border: 1px solid #ddd; padding: 15px; background: #f9f9f9; margin-top: 15px; border-radius: 4px; }
+        .view-voters-btn { background-color: #28a745; margin-left: 10px; padding: 5px 10px; font-size: 14px; }
+        .view-voters-btn:hover { background-color: #1e7e34; }
+        #admin_controls button { background-color: #dc3545; }
+        #admin_controls button:hover { background-color: #c82333; }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <h1>E-Voting Application</h1>
+    <hr>
+
+    <div id="login_section">
+        <h2>🗳️ Voter/Admin Login</h2>
+        <input type="text" id="user_name" placeholder="Full Name" value="John Doe">
+        <input type="text" id="phone_number" placeholder="Phone Number (for OTP)" value="0712345678">
+        <input type="text" id="login_id_number" placeholder="Unique ID Number (8-10 digits)" value="12345678">
+        <input type="password" id="login_password" placeholder="Password" value="pass123">
+        
+        <button onclick="attemptLogin('Voter')">Login as Voter</button>
+        <button onclick="attemptLogin('Administrator')">Login as Admin (ID: 46686267, Pass: adminpassword)</button>
+    </div>
+
+    <div id="otp_modal" style="display: none;">
+        <h3>🔑 Enter Verification Code</h3>
+        <p id="otp_message"></p>
+        <input type="text" id="otp_input" placeholder="Enter OTP (Mock: 1234)">
+        <button onclick="verifyOtp()">Verify OTP</button>
+    </div>
+
+    <div id="application_section" style="display: none;">
+        
+        <h2>📊 Live Election Results</h2>
+        <div id="votes">Loading results...</div>
+
+        <hr>
+
+        <div id="admin_controls" style="display: none;">
+            <h3>🛡️ Administrator Tools</h3>
+            <button onclick="resetSystem()">⚠️ Reset Voting System (Clear All Votes)</button>
+        </div>
+
+        <div id="voter_area_container">
+            <div id="id_extraction_container">
+                <h3>Voter Identification</h3>
+                <p><strong>Unique Voter ID:</strong> <input type="text" id="voter_id_display" value="" readonly style="width: auto;"></p>
+                <p>Simulated OCR Upload (Optional):</p>
+                <input type="file" id="id_file_input" accept="image/*" onchange="previewAndSimulateExtraction(event)">
+                <img id="id_preview" style="max-width: 100%; display: none; margin-top: 10px;">
+                <p>Extracted Name: <span id="extracted_name">N/A</span></p>
+                <p>Extracted ID: <span id="extracted_id_number">N/A</span></p>
+            </div>
+            
+            <hr>
+
+            <div id="voting_form_container">
+                <h3>✅ Cast Your Vote</h3>
+                <label for="candidate">Select a Candidate:</label>
+                <select id="candidate">
+                    <option value="WILLIAM SAMOE">WILLIAM SAMOE</option>
+                    <option value="RIGADHI GASHAGWA">RIGADHI GASHAGWA</option>
+                    <option value="UHURU MWIGAI">UHURU MWIGAI</option>
+                    <option value="BABU OWINO">BABU OWINO</option>
+                </select>
+                <button onclick="submitVote()">Submit Vote</button>
+                <p><strong>Status:</strong> <span id="result">Ready to vote.</span></p>
+            </div>
+        </div>
+
+    </div>
+</div>
+
 <script>
     // =========================================================================
-    // ⚠️ IMPORTANT: REPLACE THESE PLACEHOLDERS WITH YOUR ACTUAL SUPABASE KEYS ⚠️
+    // ⚠️ SUPABASE KEYS - NOW PUBLICLY VISIBLE IN THIS SCRIPT ⚠️
     // =========================================================================
     const SUPABASE_URL = 'https://badajhzleetjkkntvazx.supabase.co'; 
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhZGFqaHpsZWV0amtrbnR2YXp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyNzIyMzcsImV4cCI6MjA3ODg0ODIzN30.g-fwGAYO5t50KbPPXoimEzFTjho9Dd1CK-9fcyFLjEI';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhZGFqaHpsZWV0amtrbnR2YXp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyNzIyMzcsImV4cCI6MjA3ODg0ODIzN30.g-fwGAYO5t50KbPPXoimEzFTHho9Dd1CK-9fcyFLfEI';
     // =========================================================================
 
     // --- INITIALIZATION ---
-    // Note: The initialCandidates structure is now only used for the reset function.
     const initialCandidates = { 
         "WILLIAM SAMOE": [], 
         "RIGADHI GASHAGWA": [], 
@@ -40,19 +126,15 @@
         });
 
         if (!response.ok) {
-            throw new Error(`Supabase API error: ${response.statusText}`);
+            // Log the error response body for better debugging
+            const errorText = await response.text();
+            console.error('Supabase API Error Details:', errorText);
+            throw new Error(`Supabase API error: ${response.status} ${response.statusText}`);
         }
         return response.json();
     };
 
-    // --- USER/LOGIN DATA STORAGE (Supabase is now the source of truth) ---
-
-    // In a real app, this would use the Authentication service, but for simplicity, 
-    // we'll use a new 'users' table or keep a simplified local check. 
-    // Since we are not creating a 'users' table, we will keep the login simplified 
-    // and rely on the vote check for uniqueness, which is the core requirement.
-
-    // A simple function to validate a known Admin user.
+    // --- USER/LOGIN DATA STORAGE ---
     function checkAdminCredentials(id, password) {
         return id === ADMIN_ID && password === ADMIN_PASSWORD;
     }
@@ -60,11 +142,6 @@
 
     // --- AUTHENTICATION FUNCTIONS ---
 
-    /**
-     * Attempts to log in or register a new user.
-     * NOTE: Since we are not implementing a 'users' table, we skip registration 
-     * and only validate the Admin. All other logins are treated as temporary 'Voters'.
-     */
     function attemptLogin(role) {
         const name = document.getElementById('user_name').value.trim();
         const phone = document.getElementById('phone_number').value.trim();
@@ -94,8 +171,6 @@
                 return;
             }
         } else { // Voter
-            // For the simulation, any unique ID/Password combination is accepted 
-            // as a Voter, relying on the 'voter_id' uniqueness check during voting.
             currentRole = 'Voter';
             sendOtp(phone, role);
             return;
@@ -124,34 +199,38 @@
     function loginSuccess() {
         document.getElementById('login_section').style.display = 'none';
         document.getElementById('application_section').style.display = 'block';
+        document.getElementById('otp_modal').style.display = 'none';
 
         const adminControls = document.getElementById('admin_controls');
-        const idExtractor = document.getElementById('id_extraction_container');
-        const votingForm = document.getElementById('voting_form_container');
+        const voterArea = document.getElementById('voter_area_container');
         
-        adminControls.style.display = 'none';
-        idExtractor.style.display = 'block';
-        votingForm.style.display = 'block';
+        // Voter ID is displayed and used for voting
         document.getElementById('voter_id_display').value = currentVoterID;
+
+        // Reset the result message
+        document.getElementById('result').innerText = "Ready to vote.";
 
         displayResults(); 
 
         if (currentRole === 'Administrator') {
             adminControls.style.display = 'block';
-            idExtractor.style.display = 'none';
-            votingForm.style.display = 'none';
+            voterArea.style.display = 'none';
             alert(`Welcome, Administrator (${currentUserName})!`);
         } else {
+            adminControls.style.display = 'none';
+            voterArea.style.display = 'block';
             alert(`Login successful as Voter (${currentUserName})! Your unique ID (${currentVoterID}) is ready for voting.`);
         }
     }
 
-    // --- ID EXTRACTION (UNCHANGED) ---
+    // --- ID EXTRACTION ---
 
     function simulateOcr(file) {
+        // Mock data for simulation
+        const mockID = Math.floor(Math.random() * (999999999 - 100000000) + 100000000).toString();
         return {
-            name: "NOT PROCESSED", 
-            id_number: "NOT PROCESSED"
+            name: `Mock User ${Math.random().toFixed(2)}`, 
+            id_number: mockID 
         };
     }
 
@@ -162,7 +241,10 @@
         const idDisplay = document.getElementById('extracted_id_number');
 
         if (!file) {
-            // ... (reset code)
+             preview.style.display = 'none';
+             nameDisplay.innerText = "N/A";
+             idDisplay.innerText = "N/A";
+             return;
         }
 
         const reader = new FileReader();
@@ -174,17 +256,18 @@
 
         const extractedData = simulateOcr(file);
         
-        nameDisplay.innerText = extractedData.name || "Could not be read";
-        idDisplay.innerText = extractedData.id_number || "Could not be read";
+        nameDisplay.innerText = extractedData.name;
+        idDisplay.innerText = extractedData.id_number;
 
-        document.getElementById('voter_id_display').value = extractedData.id_number || '';
+        // IMPORTANT: Update the core voter ID and current user variables for the voting process
+        currentUserName = extractedData.name;
+        currentVoterID = extractedData.id_number;
+        document.getElementById('voter_id_display').value = currentVoterID;
+        alert(`Extracted ID and Name updated for voting: ${currentUserName}, ID: ${currentVoterID}`);
     }
 
-    // --- VOTING SYSTEM FUNCTIONS (NETWORK INTEGRATED) ---
+    // --- VOTING SYSTEM FUNCTIONS ---
     
-    /**
-     * Resets the system by deleting all rows from the 'votes' table.
-     */
     async function resetSystem() {
         if (currentRole !== 'Administrator') {
              alert("Access Denied. Only the Administrator can reset the system.");
@@ -193,7 +276,7 @@
 
         if (confirm("Are you sure you want to reset the entire voting system? (ALL records will be cleared from the database!)")) {
             try {
-                // Supabase API call to delete all records from the 'votes' table
+                // DELETE call: requires the appropriate RLS policy (usually service_role key, but using anon key here for simplicity)
                 await supabaseFetch('/rest/v1/votes?id=not.is.null', { 
                     method: 'DELETE' 
                 });
@@ -202,16 +285,14 @@
                 displayResults();
             } catch (error) {
                 console.error('Reset error:', error);
-                alert("Failed to reset system. Check console for details.");
+                alert("Failed to reset system. Check console and network for details. (Likely RLS permission issue for DELETE).");
             }
         }
     }
 
-    /**
-     * Submits the vote by inserting a new row into the 'votes' table.
-     */
     async function submitVote() {
         if (!currentVoterID || currentRole !== 'Voter') {
+             document.getElementById('result').innerText = "Error: Not logged in as a Voter or missing unique ID.";
              alert("You must be logged in as a Voter to cast a vote.");
              return;
         }
@@ -220,7 +301,6 @@
 
         try {
             // 1. Check for Duplication
-            // Supabase API call to count votes where voter_id matches the current ID
             const existingVotes = await supabaseFetch(`/rest/v1/votes?voter_id=eq.${currentVoterID}&select=count`, {
                 method: 'GET',
                 headers: { 'Accept': 'application/vnd.pgrst.object+json' }
@@ -240,24 +320,21 @@
                 candidate: candidate 
             };
 
-            // Supabase API call to insert the new vote record
             await supabaseFetch('/rest/v1/votes', {
                 method: 'POST',
                 body: JSON.stringify(newVote)
             });
 
-            document.getElementById('result').innerText = "Vote submitted successfully!";
+            document.getElementById('result').innerText = `Vote for ${candidate} submitted successfully!`;
             displayResults();
 
         } catch (error) {
             console.error('Submission error:', error);
-            alert("Failed to submit vote. Check console for details.");
+            document.getElementById('result').innerText = "Failed to submit vote. Check console.";
+            alert("Failed to submit vote. Check console for details (Likely RLS permission issue for INSERT).");
         }
     }
 
-    /**
-     * Displays the list of voters for a selected candidate using data from the database.
-     */
     async function showCandidateVoters(candidateName) {
         if (currentRole !== 'Administrator') {
             alert("Access Denied. Only the Administrator can view individual voter records.");
@@ -265,7 +342,6 @@
         }
 
         try {
-            // Supabase API call to get all votes for the specified candidate
             const voterEntries = await supabaseFetch(`/rest/v1/votes?candidate=eq.${candidateName}&select=voter_name,voter_id`);
             
             if (voterEntries.length === 0) {
@@ -283,13 +359,10 @@
 
         } catch (error) {
             console.error('View voters error:', error);
-            alert("Failed to retrieve voter list. Check console for details.");
+            alert("Failed to retrieve voter list. Check console for details (Likely RLS permission issue for SELECT).");
         }
     }
 
-    /**
-     * Retrieves all vote records, groups them by candidate, and updates the display.
-     */
     async function displayResults() {
         const votesDiv = document.getElementById('votes');
         if (!votesDiv) return;
@@ -299,7 +372,7 @@
         const candidateCounts = {};
 
         try {
-            // Supabase API call to get ALL votes
+            // GET ALL votes (requires RLS SELECT permission for 'anon' role)
             const allVotes = await supabaseFetch('/rest/v1/votes?select=candidate');
 
             // 1. Tally Votes and Group by Candidate
@@ -312,7 +385,6 @@
                 
                 let adminButton = '';
                 if (isAdmin) {
-                    // Button calls showCandidateVoters which fetches detailed data on demand
                     adminButton = `<button class="view-voters-btn" onclick="showCandidateVoters('${candidate}')">👤 View Voters (${count})</button>`;
                 }
                 
@@ -327,11 +399,13 @@
 
         } catch (error) {
             console.error('Display results error:', error);
-            votesDiv.innerHTML = 'Error loading results. Check network connection.';
+            votesDiv.innerHTML = 'Error loading results. Please check your Supabase RLS policies and network connection.';
         }
     }
 
-    // Initial load of results
-    // NOTE: This will run on page load before login.
+    // Initial load of results on page load
     displayResults();
 </script>
+
+</body>
+</html>
