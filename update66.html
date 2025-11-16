@@ -1,0 +1,337 @@
+<script>
+    // =========================================================================
+    // ⚠️ IMPORTANT: REPLACE THESE PLACEHOLDERS WITH YOUR ACTUAL SUPABASE KEYS ⚠️
+    // =========================================================================
+    const SUPABASE_URL = 'https://badajhzleetjkkntvazx.supabase.co'; 
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJhZGFqaHpsZWV0amtrbnR2YXp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMyNzIyMzcsImV4cCI6MjA3ODg0ODIzN30.g-fwGAYO5t50KbPPXoimEzFTjho9Dd1CK-9fcyFLjEI';
+    // =========================================================================
+
+    // --- INITIALIZATION ---
+    // Note: The initialCandidates structure is now only used for the reset function.
+    const initialCandidates = { 
+        "WILLIAM SAMOE": [], 
+        "RIGADHI GASHAGWA": [], 
+        "UHURU MWIGAI": [], 
+        "BABU OWINO": [] 
+    };
+
+    const ADMIN_ID = '46686267'; // Admin's unique ID
+    const ADMIN_PASSWORD = 'adminpassword'; // Admin's password
+
+    let currentRole = null;
+    let currentVoterID = null; // The unique ID used for voting
+    let currentUserName = null; 
+    let SIMULATED_OTP = null; 
+
+    // --- SUPABASE API HELPERS ---
+
+    // Generic fetch function for Supabase (uses the anon key)
+    const supabaseFetch = async (endpoint, options = {}) => {
+        const url = `${SUPABASE_URL}${endpoint}`;
+        const defaultHeaders = {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        };
+
+        const response = await fetch(url, {
+            ...options,
+            headers: { ...defaultHeaders, ...options.headers },
+        });
+
+        if (!response.ok) {
+            throw new Error(`Supabase API error: ${response.statusText}`);
+        }
+        return response.json();
+    };
+
+    // --- USER/LOGIN DATA STORAGE (Supabase is now the source of truth) ---
+
+    // In a real app, this would use the Authentication service, but for simplicity, 
+    // we'll use a new 'users' table or keep a simplified local check. 
+    // Since we are not creating a 'users' table, we will keep the login simplified 
+    // and rely on the vote check for uniqueness, which is the core requirement.
+
+    // A simple function to validate a known Admin user.
+    function checkAdminCredentials(id, password) {
+        return id === ADMIN_ID && password === ADMIN_PASSWORD;
+    }
+
+
+    // --- AUTHENTICATION FUNCTIONS ---
+
+    /**
+     * Attempts to log in or register a new user.
+     * NOTE: Since we are not implementing a 'users' table, we skip registration 
+     * and only validate the Admin. All other logins are treated as temporary 'Voters'.
+     */
+    function attemptLogin(role) {
+        const name = document.getElementById('user_name').value.trim();
+        const phone = document.getElementById('phone_number').value.trim();
+        const id = document.getElementById('login_id_number').value.trim();
+        const password = document.getElementById('login_password').value;
+
+        if (!name || !phone || !id || !password) {
+            alert("Please fill in all fields (Name, Phone, Unique ID, and Password).");
+            return;
+        }
+
+        if (!id.match(/^[0-9]+$/) || id.length < 8 || id.length > 10) {
+             alert("The Unique ID Number must be 8-10 digits.");
+             return;
+        }
+        
+        currentUserName = name; 
+        currentVoterID = id;
+
+        if (role === 'Administrator') {
+            if (checkAdminCredentials(id, password)) {
+                currentRole = 'Administrator';
+                sendOtp(phone, role);
+                return;
+            } else {
+                alert("Invalid Administrator credentials.");
+                return;
+            }
+        } else { // Voter
+            // For the simulation, any unique ID/Password combination is accepted 
+            // as a Voter, relying on the 'voter_id' uniqueness check during voting.
+            currentRole = 'Voter';
+            sendOtp(phone, role);
+            return;
+        }
+    }
+    
+    function sendOtp(phone, role) {
+        SIMULATED_OTP = '1234'; 
+        
+        document.getElementById('otp_message').innerText = 
+            `Verification code (Mock: ${SIMULATED_OTP}) has been 'sent' to ${phone}.`;
+        document.getElementById('otp_modal').style.display = 'block';
+    }
+    
+    function verifyOtp() {
+        const enteredOtp = document.getElementById('otp_input').value.trim();
+        
+        if (enteredOtp === SIMULATED_OTP) {
+            document.getElementById('otp_modal').style.display = 'none';
+            loginSuccess();
+        } else {
+            alert("Invalid OTP. Please try again.");
+        }
+    }
+
+    function loginSuccess() {
+        document.getElementById('login_section').style.display = 'none';
+        document.getElementById('application_section').style.display = 'block';
+
+        const adminControls = document.getElementById('admin_controls');
+        const idExtractor = document.getElementById('id_extraction_container');
+        const votingForm = document.getElementById('voting_form_container');
+        
+        adminControls.style.display = 'none';
+        idExtractor.style.display = 'block';
+        votingForm.style.display = 'block';
+        document.getElementById('voter_id_display').value = currentVoterID;
+
+        displayResults(); 
+
+        if (currentRole === 'Administrator') {
+            adminControls.style.display = 'block';
+            idExtractor.style.display = 'none';
+            votingForm.style.display = 'none';
+            alert(`Welcome, Administrator (${currentUserName})!`);
+        } else {
+            alert(`Login successful as Voter (${currentUserName})! Your unique ID (${currentVoterID}) is ready for voting.`);
+        }
+    }
+
+    // --- ID EXTRACTION (UNCHANGED) ---
+
+    function simulateOcr(file) {
+        return {
+            name: "NOT PROCESSED", 
+            id_number: "NOT PROCESSED"
+        };
+    }
+
+    function previewAndSimulateExtraction(event) {
+        const file = event.target.files[0];
+        const preview = document.getElementById('id_preview');
+        const nameDisplay = document.getElementById('extracted_name');
+        const idDisplay = document.getElementById('extracted_id_number');
+
+        if (!file) {
+            // ... (reset code)
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            preview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+
+        const extractedData = simulateOcr(file);
+        
+        nameDisplay.innerText = extractedData.name || "Could not be read";
+        idDisplay.innerText = extractedData.id_number || "Could not be read";
+
+        document.getElementById('voter_id_display').value = extractedData.id_number || '';
+    }
+
+    // --- VOTING SYSTEM FUNCTIONS (NETWORK INTEGRATED) ---
+    
+    /**
+     * Resets the system by deleting all rows from the 'votes' table.
+     */
+    async function resetSystem() {
+        if (currentRole !== 'Administrator') {
+             alert("Access Denied. Only the Administrator can reset the system.");
+             return;
+        }
+
+        if (confirm("Are you sure you want to reset the entire voting system? (ALL records will be cleared from the database!)")) {
+            try {
+                // Supabase API call to delete all records from the 'votes' table
+                await supabaseFetch('/rest/v1/votes?id=not.is.null', { 
+                    method: 'DELETE' 
+                });
+
+                document.getElementById('result').innerText = "System has been reset. All votes cleared!";
+                displayResults();
+            } catch (error) {
+                console.error('Reset error:', error);
+                alert("Failed to reset system. Check console for details.");
+            }
+        }
+    }
+
+    /**
+     * Submits the vote by inserting a new row into the 'votes' table.
+     */
+    async function submitVote() {
+        if (!currentVoterID || currentRole !== 'Voter') {
+             alert("You must be logged in as a Voter to cast a vote.");
+             return;
+        }
+
+        const candidate = document.getElementById('candidate').value;
+
+        try {
+            // 1. Check for Duplication
+            // Supabase API call to count votes where voter_id matches the current ID
+            const existingVotes = await supabaseFetch(`/rest/v1/votes?voter_id=eq.${currentVoterID}&select=count`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/vnd.pgrst.object+json' }
+            });
+            
+            const voteCount = existingVotes.count;
+
+            if (voteCount > 0) {
+                document.getElementById('result').innerText = "You have already voted!";
+                return;
+            }
+
+            // 2. Record Vote
+            const newVote = { 
+                voter_id: currentVoterID, 
+                voter_name: currentUserName, 
+                candidate: candidate 
+            };
+
+            // Supabase API call to insert the new vote record
+            await supabaseFetch('/rest/v1/votes', {
+                method: 'POST',
+                body: JSON.stringify(newVote)
+            });
+
+            document.getElementById('result').innerText = "Vote submitted successfully!";
+            displayResults();
+
+        } catch (error) {
+            console.error('Submission error:', error);
+            alert("Failed to submit vote. Check console for details.");
+        }
+    }
+
+    /**
+     * Displays the list of voters for a selected candidate using data from the database.
+     */
+    async function showCandidateVoters(candidateName) {
+        if (currentRole !== 'Administrator') {
+            alert("Access Denied. Only the Administrator can view individual voter records.");
+            return;
+        }
+
+        try {
+            // Supabase API call to get all votes for the specified candidate
+            const voterEntries = await supabaseFetch(`/rest/v1/votes?candidate=eq.${candidateName}&select=voter_name,voter_id`);
+            
+            if (voterEntries.length === 0) {
+                alert(`No voters have cast a vote for ${candidateName} yet.`);
+                return;
+            }
+
+            let voterList = `Voters for ${candidateName} (${voterEntries.length}):\n\n`;
+            
+            voterEntries.forEach((entry, index) => {
+                voterList += `${index + 1}. Name: ${entry.voter_name}, ID: ${entry.voter_id}\n`;
+            });
+
+            alert(voterList);
+
+        } catch (error) {
+            console.error('View voters error:', error);
+            alert("Failed to retrieve voter list. Check console for details.");
+        }
+    }
+
+    /**
+     * Retrieves all vote records, groups them by candidate, and updates the display.
+     */
+    async function displayResults() {
+        const votesDiv = document.getElementById('votes');
+        if (!votesDiv) return;
+        votesDiv.innerHTML = 'Loading results...';
+        
+        const isAdmin = currentRole === 'Administrator';
+        const candidateCounts = {};
+
+        try {
+            // Supabase API call to get ALL votes
+            const allVotes = await supabaseFetch('/rest/v1/votes?select=candidate');
+
+            // 1. Tally Votes and Group by Candidate
+            for (const key of Object.keys(initialCandidates)) {
+                candidateCounts[key] = allVotes.filter(vote => vote.candidate === key).length;
+            }
+            
+            let html = "";
+            for (const [candidate, count] of Object.entries(candidateCounts)) {
+                
+                let adminButton = '';
+                if (isAdmin) {
+                    // Button calls showCandidateVoters which fetches detailed data on demand
+                    adminButton = `<button class="view-voters-btn" onclick="showCandidateVoters('${candidate}')">👤 View Voters (${count})</button>`;
+                }
+                
+                html += `
+                    <strong>${candidate}</strong>: ${count} votes 
+                    ${adminButton}
+                    <br><br>
+                `;
+            }
+
+            votesDiv.innerHTML = html;
+
+        } catch (error) {
+            console.error('Display results error:', error);
+            votesDiv.innerHTML = 'Error loading results. Check network connection.';
+        }
+    }
+
+    // Initial load of results
+    // NOTE: This will run on page load before login.
+    displayResults();
+</script>
